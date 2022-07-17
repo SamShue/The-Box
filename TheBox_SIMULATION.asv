@@ -1,0 +1,29 @@
+clc;
+clear all;
+close all;
+
+% Anchor Node @: 
+% 25' 9" from wall depression near door
+% 7' 4.5" from wall on the left while entering room
+% 
+% Room Measurements: 
+% 46' 1" from wall depression near door to opposite wall
+% 41' 8.5" from right to left wall while entering room
+
+% Room dimensions
+roomLength_m = 10;
+roomWidth_m = 20;
+roomHeight_m = 10;
+
+% Tx Rx positions
+txPos_m = [5,5,1];
+rxPos_m = [10,5,1];
+
+% Transmission settings
+Frequency_Hz = 2400000; % 2.4 GHz
+
+% Log-Distance Path Loss Model Parameters
+A = 45;     % 1 meter reference RSSI value
+n = 2.1;    % Path-loss exponent
+
+% Get RSSI value from line of sign
