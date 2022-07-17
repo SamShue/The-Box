@@ -20,7 +20,7 @@ txPos_m = [5,5,1];
 rxPos_m = [5,15,1];
 
 % Transmission settings
-Frequency_Hz = 2400000; % 2.4 GHz
+Frequency_Hz = 2400000000; % 2.4 GHz
 Wavelength_m = physconst('LightSpeed')/Frequency_Hz;
 
 % Log-Distance Path Loss Model Parameters
@@ -37,7 +37,7 @@ scatter3(rxPos_m(1),rxPos_m(2),rxPos_m(3));
 text(rxPos_m(1),rxPos_m(2),rxPos_m(3)+roomHeight_m*0.1,'rx');
 
 % Get RSSI value from line of sight measuremnt
-RSSI_los = A + 10*n*log(d);
+rssiLos = A + 10*n*log(d);
 
 % Get all points associated with cube
 ii = 1;
@@ -85,26 +85,19 @@ for ii = 1:length(w)
     points = cell2mat(w(ii));
     a = points(2,:) - points(1,:);
     b = points(3,:) - points(1,:);
-    n = cross(a,b);
-    n = n/norm(n);
+    normalvec = cross(a,b);
+    normalvec = normalvec/norm(normalvec);
     % Project tx point onto plane
-    v = txPos_m - points(1,:);
-    dist1 = dot(v,n);
+    v1 = txPos_m - points(1,:);
+    dist1 = dot(v1,normalvec);
     % Project rx point onto plane
-    v = rxPos_m - points(1,:);
-    dist2 = dot(v,n);
+    v2 = rxPos_m - points(1,:);
+    dist2 = dot(v2,normalvec);
     % Save the closer point
     if(dist1 < dist2)
-        projected_point = txPos_m - dist1.*n;
-        % Plot projected point
-        scatter3(projected_point(1), projected_point(2), projected_point(3));
-        % Plot line connecting projection points
-        xpoints = [txPos_m(1), projectedPoint(1), rxPos_m(1)];
-        ypoints = [txPos_m(2), projectedPoint(2), rxPos_m(2)];
-        zpoints = [txPos_m(3), projectedPoint(3), rxPos_m(3)];
-        plot3(xpoints, ypoints, zpoints)
+        projectedPoint = txPos_m - dist1.*normalvec;
     else
-        projected_point = rxPos_m - dist2.*n;
+        projectedPoint = rxPos_m - dist2.*normalvec;
     end
     % Plot line connecting projection points
     xpoints = [txPos_m(1), projectedPoint(1), rxPos_m(1)];
@@ -112,6 +105,15 @@ for ii = 1:length(w)
     zpoints = [txPos_m(3), projectedPoint(3), rxPos_m(3)];
     plot3(xpoints, ypoints, zpoints)
     % Plot projected point
-    scatter3(projected_point(1), projected_point(2), projected_point(3));
+    scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
+    text(projectedPoint(1),projectedPoint(2), projectedPoint(3)+roomHeight_m*0.1, char(ii));
+    % save multipath travel distance
+    dist(ii) = norm(txPos_m - projectedPoint) + norm(projectedPoint - rxPos_m);
+    % divide and get remainder and scale by 2pi
+    phase(ii) = rem(dist(ii)/Wavelength_m, 1)*2*pi;
+    % use phase to get signal interference
+    interference(ii) = cos(phase(ii));
 end
-RSSI_left_wall = A + 10*n*log(d);
+
+rssiMultipath = (A + 10*n*log(dist)).*interference;
+ActualRssi = rssiLos + sum(rssiMultipath);
