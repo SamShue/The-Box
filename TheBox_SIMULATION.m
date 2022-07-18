@@ -53,8 +53,8 @@ w5 = p(p(:,3) == 0,:);
 w6 = p(p(:,3) == roomHeight_m,:);
 
 % put all wall cordinates into cell array
-% w = {w1, w2, w3, w4, w5, w6};
-w = {w1};
+w = {w1, w2, w3, w4, w5, w6};
+% w = {w3};
 
 positionIncrements = txPos_m(1) + 1:0.1:8;
 for kk = 1:length(positionIncrements)
@@ -107,7 +107,7 @@ for kk = 1:length(positionIncrements)
         % use phase to get signal interference
         interference(ii) = cos(phase(ii));
         % get RSSI
-        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii)*0.1;
+        rssi(ii) = (A + 10*n*log(dist(ii)));%.*interference(ii);
 
         % Plot line connecting projection points
         hold on;
