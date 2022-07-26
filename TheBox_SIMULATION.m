@@ -53,10 +53,9 @@ w5 = p(p(:,3) == 0,:);
 w6 = p(p(:,3) == roomHeight_m,:);
 
 % put all wall cordinates into cell array
-w = {w1, w2, w3, w4, w5, w6};
-% w = {w3};
+w = {w3, w4, w5, w6};
 
-positionIncrements = txPos_m(1) + 1:0.1:8;
+positionIncrements = txPos_m(1) + (1:1:8);
 for kk = 1:length(positionIncrements)
     rxPos_m(1) = positionIncrements(kk);
 
@@ -83,22 +82,18 @@ for kk = 1:length(positionIncrements)
     % Loop thru each wall projecting points
     for ii = 1:length(w)
         wallPoints = cell2mat(w(ii));
+
         a = wallPoints(2,:) - wallPoints(1,:);
         b = wallPoints(3,:) - wallPoints(1,:);
         normalVec = cross(a,b);
         normalVec = normalVec/norm(normalVec);
         % Project tx point onto plane
-        v1 = txPos_m - wallPoints(1,:);
-        dist1 = dot(v1,normalVec);
-        % Project rx point onto plane
-        v2 = rxPos_m - wallPoints(1,:);
-        dist2 = dot(v2,normalVec);
-        % Save the closer point
-        if(dist1 < dist2)
-            projectedPoint = txPos_m - dist1.*normalVec;
-        else
-            projectedPoint = rxPos_m - dist2.*normalVec;
-        end
+        midpoint = (txPos_m + rxPos_m)/2;
+        v = midpoint - wallPoints(1,:);
+        dist = dot(v,normalVec);
+        
+        projectedPoint = midpoint - dist.*normalVec;
+
         
         % save multipath travel distance
         dist(ii) = norm(txPos_m - projectedPoint) + norm(projectedPoint - rxPos_m);
@@ -107,7 +102,7 @@ for kk = 1:length(positionIncrements)
         % use phase to get signal interference
         interference(ii) = cos(phase(ii));
         % get RSSI
-        rssi(ii) = (A + 10*n*log(dist(ii)));%.*interference(ii);
+        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii).*0.20;
 
         % Plot line connecting projection points
         hold on;
@@ -117,6 +112,7 @@ for kk = 1:length(positionIncrements)
         plot3(xpoints, ypoints, zpoints)
         % Plot projected point
         scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
+        scatter3(midpoint(1), midpoint(2), midpoint(3));
         text(projectedPoint(1),projectedPoint(2), projectedPoint(3)+roomHeight_m*0.1, int2str(ii));
     end
     plotBoxModel(roomLength_m, roomWidth_m, roomHeight_m, txPos_m, rxPos_m);

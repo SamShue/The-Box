@@ -54,10 +54,11 @@ w6 = p(p(:,3) == roomHeight_m,:);
 
 % put all wall cordinates into cell array
 w = {w1, w2, w3, w4, w5, w6};
+% w = {w3};
 
-distIncrements = 3.2479:0.1:8;
-for kk = 1:length(distIncrements)
-    rxPos_m(1) = distIncrements(kk);
+positionIncrements = txPos_m(1) + 1:0.1:8;
+for kk = 1:length(positionIncrements)
+    rxPos_m(1) = positionIncrements(kk);
 
     % Get RSSI value from left wall reflection
     % Get the vectors that define the plane of the first wall
@@ -75,10 +76,22 @@ for kk = 1:length(distIncrements)
     % projected_point = txPos_m - dist.*n;
     % % Plot projected point
     % scatter3(projected_point(1), projected_point(2), projected_point(3));
+
+    clf;
+    hold on;
     
     % Loop thru each wall projecting points
     for ii = 1:length(w)
         wallPoints = cell2mat(w(ii));
+
+        tbl = table(X, d);
+
+        d = d.^2;
+        weights = d.^(-1);  %inversly proportional
+        modelfun = @(b,X)(abs(b(1)-X(:,1)).^2+abs(b(2)-X(:,2)).^2).^(1/2);
+        mdl = fitnlm(tbl,modelfun,beta0,'Weights',weights);
+        b = mdl.Coefficients{1:2,{'Estimate'}};
+
         a = wallPoints(2,:) - wallPoints(1,:);
         b = wallPoints(3,:) - wallPoints(1,:);
         normalVec = cross(a,b);
@@ -103,9 +116,10 @@ for kk = 1:length(distIncrements)
         % use phase to get signal interference
         interference(ii) = cos(phase(ii));
         % get RSSI
-        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii)*0.1;
+        rssi(ii) = (A + 10*n*log(dist(ii)));%.*interference(ii);
 
         % Plot line connecting projection points
+        hold on;
         xpoints = [txPos_m(1), projectedPoint(1), rxPos_m(1)];
         ypoints = [txPos_m(2), projectedPoint(2), rxPos_m(2)];
         zpoints = [txPos_m(3), projectedPoint(3), rxPos_m(3)];
@@ -114,12 +128,13 @@ for kk = 1:length(distIncrements)
         scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
         text(projectedPoint(1),projectedPoint(2), projectedPoint(3)+roomHeight_m*0.1, int2str(ii));
     end
-    
-    rssiMultipath(kk) = sum(rssi);
+    plotBoxModel(roomLength_m, roomWidth_m, roomHeight_m, txPos_m, rxPos_m);
     pause(0.1);
     
+    rssiMultipath(kk) = sum(rssi);
 end
 
+distIncrements = positionIncrements - txPos_m(1);
 losRssi = A + 10*n*log(distIncrements);
 
 figure()
@@ -128,5 +143,5 @@ plot(distIncrements, ActualRssi)
 
 figure()
 hold on;
-plot(distIncrements, (A + 10*n*log(distIncrements)))
+plot(distIncrements, losRssi)
 plot(distIncrements, rssiMultipath)
