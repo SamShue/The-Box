@@ -55,7 +55,7 @@ w6 = p(p(:,3) == roomHeight_m,:);
 % put all wall cordinates into cell array
 w = {w3, w4, w5, w6};
 
-positionIncrements = txPos_m(1) + (1:1:8);
+positionIncrements = txPos_m(1) + (1:0.1:8);
 for kk = 1:length(positionIncrements)
     rxPos_m(1) = positionIncrements(kk);
 
