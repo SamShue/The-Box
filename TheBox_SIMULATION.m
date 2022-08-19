@@ -15,6 +15,10 @@ roomLength_m = 12.7127;
 roomWidth_m = 14.0462;
 roomHeight_m = 3;
 
+% Collected data
+RealRSSI_nDBm = [32, 33, 38, 44, 44, 39, 40, 41];
+RealDist_m =  [1, 2, 3, 4, 5, 6, 7, 8];
+
 % Tx Rx positions
 txPos_m = [2.2479,7.8486, 1];
 rxPos_m = [3.2479, 7.8486, 1];
@@ -25,7 +29,7 @@ Wavelength_m = physconst('LightSpeed')/Frequency_Hz;
 
 % Log-Distance Path Loss Model Parameters
 A = 32;     % 1 meter reference RSSI value
-n = 1.45;    % Path-loss exponent
+n = 0.8;    % Path-loss exponent
 d = norm(txPos_m - rxPos_m);    % distance between
 
 plotBoxModel(roomLength_m, roomWidth_m, roomHeight_m, txPos_m, rxPos_m);
@@ -53,7 +57,7 @@ w5 = p(p(:,3) == 0,:);
 w6 = p(p(:,3) == roomHeight_m,:);
 
 % put all wall cordinates into cell array
-w = {w3, w4, w5, w6};
+w = {w1, w2, w3, w4, w5, w6};
 
 positionIncrements = txPos_m(1) + (1:0.1:8);
 for kk = 1:length(positionIncrements)
@@ -102,7 +106,7 @@ for kk = 1:length(positionIncrements)
         % use phase to get signal interference
         interference(ii) = cos(phase(ii));
         % get RSSI
-        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii).*0.20;
+        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii).*0.10;
 
         % Plot line connecting projection points
         hold on;
@@ -111,8 +115,8 @@ for kk = 1:length(positionIncrements)
         zpoints = [txPos_m(3), projectedPoint(3), rxPos_m(3)];
         plot3(xpoints, ypoints, zpoints)
         % Plot projected point
-        scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
-        scatter3(midpoint(1), midpoint(2), midpoint(3));
+%         scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
+%         scatter3(midpoint(1), midpoint(2), midpoint(3));
         text(projectedPoint(1),projectedPoint(2), projectedPoint(3)+roomHeight_m*0.1, int2str(ii));
     end
     plotBoxModel(roomLength_m, roomWidth_m, roomHeight_m, txPos_m, rxPos_m);
@@ -127,8 +131,13 @@ losRssi = A + 10*n*log(distIncrements);
 figure()
 ActualRssi = losRssi + rssiMultipath;
 plot(distIncrements, ActualRssi)
-
-figure()
 hold on;
-plot(distIncrements, losRssi)
-plot(distIncrements, rssiMultipath)
+scatter(RealDist_m, RealRSSI_nDBm);
+distances = 1:0.1:8;
+plot(distances, (A + 10*n*log(distances)))
+
+
+% figure()
+% hold on;
+% plot(distIncrements, losRssi)
+% plot(distIncrements, rssiMultipath)

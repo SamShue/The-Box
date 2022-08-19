@@ -15,6 +15,10 @@ roomLength_m = 12.7127;
 roomWidth_m = 14.0462;
 roomHeight_m = 3;
 
+% Collected data
+RealRSSI_nDBm = [32, 33, 38, 44, 44, 39, 40, 41];
+RealDist_m =  [1, 2, 3, 4, 5, 6, 7, 8];
+
 % Tx Rx positions
 txPos_m = [2.2479,7.8486, 1];
 rxPos_m = [3.2479, 7.8486, 1];
@@ -54,9 +58,8 @@ w6 = p(p(:,3) == roomHeight_m,:);
 
 % put all wall cordinates into cell array
 w = {w1, w2, w3, w4, w5, w6};
-% w = {w3};
 
-positionIncrements = txPos_m(1) + 1:0.1:8;
+positionIncrements = txPos_m(1) + (1:0.1:8);
 for kk = 1:length(positionIncrements)
     rxPos_m(1) = positionIncrements(kk);
 
@@ -84,30 +87,17 @@ for kk = 1:length(positionIncrements)
     for ii = 1:length(w)
         wallPoints = cell2mat(w(ii));
 
-        tbl = table(X, d);
-
-        d = d.^2;
-        weights = d.^(-1);  %inversly proportional
-        modelfun = @(b,X)(abs(b(1)-X(:,1)).^2+abs(b(2)-X(:,2)).^2).^(1/2);
-        mdl = fitnlm(tbl,modelfun,beta0,'Weights',weights);
-        b = mdl.Coefficients{1:2,{'Estimate'}};
-
         a = wallPoints(2,:) - wallPoints(1,:);
         b = wallPoints(3,:) - wallPoints(1,:);
         normalVec = cross(a,b);
         normalVec = normalVec/norm(normalVec);
         % Project tx point onto plane
-        v1 = txPos_m - wallPoints(1,:);
-        dist1 = dot(v1,normalVec);
-        % Project rx point onto plane
-        v2 = rxPos_m - wallPoints(1,:);
-        dist2 = dot(v2,normalVec);
-        % Save the closer point
-        if(dist1 < dist2)
-            projectedPoint = txPos_m - dist1.*normalVec;
-        else
-            projectedPoint = rxPos_m - dist2.*normalVec;
-        end
+        midpoint = (txPos_m + rxPos_m)/2;
+        v = midpoint - wallPoints(1,:);
+        dist = dot(v,normalVec);
+        
+        projectedPoint = midpoint - dist.*normalVec;
+
         
         % save multipath travel distance
         dist(ii) = norm(txPos_m - projectedPoint) + norm(projectedPoint - rxPos_m);
@@ -116,7 +106,7 @@ for kk = 1:length(positionIncrements)
         % use phase to get signal interference
         interference(ii) = cos(phase(ii));
         % get RSSI
-        rssi(ii) = (A + 10*n*log(dist(ii)));%.*interference(ii);
+        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii).*0.05;
 
         % Plot line connecting projection points
         hold on;
@@ -125,7 +115,8 @@ for kk = 1:length(positionIncrements)
         zpoints = [txPos_m(3), projectedPoint(3), rxPos_m(3)];
         plot3(xpoints, ypoints, zpoints)
         % Plot projected point
-        scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
+%         scatter3(projectedPoint(1), projectedPoint(2), projectedPoint(3));
+%         scatter3(midpoint(1), midpoint(2), midpoint(3));
         text(projectedPoint(1),projectedPoint(2), projectedPoint(3)+roomHeight_m*0.1, int2str(ii));
     end
     plotBoxModel(roomLength_m, roomWidth_m, roomHeight_m, txPos_m, rxPos_m);
@@ -140,8 +131,12 @@ losRssi = A + 10*n*log(distIncrements);
 figure()
 ActualRssi = losRssi + rssiMultipath;
 plot(distIncrements, ActualRssi)
-
-figure()
 hold on;
-plot(distIncrements, losRssi)
-plot(distIncrements, rssiMultipath)
+scatter(RealDist_m, RealRSSI_nDBm);
+distance = 1:0.1:8;
+
+
+% figure()
+% hold on;
+% plot(distIncrements, losRssi)
+% plot(distIncrements, rssiMultipath)
