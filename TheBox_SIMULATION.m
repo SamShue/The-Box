@@ -16,21 +16,25 @@ roomWidth_m = 14.0462;
 roomHeight_m = 3;
 
 % Collected data
-RealRSSI_nDBm = [32, 33, 38, 44, 44, 39, 40, 41];
-RealDist_m =  [1, 2, 3, 4, 5, 6, 7, 8];
+% RealRSSI_nDBm = [32, 33, 38, 44, 44, 39, 40, 41]';
+% RealDist_m =  [1, 2, 3, 4, 5, 6, 7, 8]';
+T = readcell('dataCollection_9_10_22.xlsx');
+RealDist_m = cell2mat(T(2:26,1)).*0.3048;
+RealRSSI_nDBm = mean(hex2dec(string(T(2:26,2:11))), 2);
 
 % Tx Rx positions
 txPos_m = [2.2479,7.8486, 1];
 rxPos_m = [3.2479, 7.8486, 1];
 
+% Log-Distance Path Loss Model Parameters
+% A = 32;     % 1 meter reference RSSI value
+% n = 1.14;    % Path-loss exponent
+[A, n] = fitLogDistanceModel(RealRSSI_nDBm, RealDist_m);
+% A = hex2dec('21'); % recorded separately
+
 % Transmission settings
 Frequency_Hz = 2400000000; % 2.4 GHz
 Wavelength_m = physconst('LightSpeed')/Frequency_Hz;
-
-% Log-Distance Path Loss Model Parameters
-A = 32;     % 1 meter reference RSSI value
-n = 0.8;    % Path-loss exponent
-d = norm(txPos_m - rxPos_m);    % distance between
 
 plotBoxModel(roomLength_m, roomWidth_m, roomHeight_m, txPos_m, rxPos_m);
 
@@ -58,8 +62,14 @@ w6 = p(p(:,3) == roomHeight_m,:);
 
 % put all wall cordinates into cell array
 w = {w1, w2, w3, w4, w5, w6};
+% w = {w3, w4, w5, w6};
+w = {w4}
 
-positionIncrements = txPos_m(1) + (1:0.1:8);
+distIncrements = 1:0.01:8;
+positionIncrements = txPos_m(1) + distIncrements;
+losRssi = A + 10*n*log10(distIncrements);
+losPhase = real(exp(-j*((2*pi*Frequency_Hz)/physconst('LightSpeed'))*distIncrements));
+
 for kk = 1:length(positionIncrements)
     rxPos_m(1) = positionIncrements(kk);
 
@@ -100,13 +110,23 @@ for kk = 1:length(positionIncrements)
 
         
         % save multipath travel distance
-        dist(ii) = norm(txPos_m - projectedPoint) + norm(projectedPoint - rxPos_m);
-        % divide and get remainder and scale by 2pi
-        phase(ii) = rem(dist(ii)/Wavelength_m, 1)*2*pi;
-        % use phase to get signal interference
-        interference(ii) = cos(phase(ii));
+        dist = norm(txPos_m - projectedPoint) + norm(projectedPoint - rxPos_m);
+%         % divide and get remainder and scale by 2pi
+%         phase(ii) = rem(dist(ii)/Wavelength_m, 1)*2*pi;
+%         % use phase to get signal interference
+%         interference(ii) = cos(phase(ii));
+        
+        phase = real(exp(-j*((2*pi*Frequency_Hz)/physconst('LightSpeed'))*dist));
+        phaseDifference = losPhase(kk) - phase;
+
+        % use phase difference to get signal interference
+        interference = phaseDifference/2.0;
+
+        % reflectance coefficient
+        reflectance = 0.03;
+
         % get RSSI
-        rssi(ii) = (A + 10*n*log(dist(ii))).*interference(ii).*0.10;
+        rssi(ii) = (A + 10*n*log10(dist)).*interference.*reflectance;
 
         % Plot line connecting projection points
         hold on;
@@ -125,16 +145,15 @@ for kk = 1:length(positionIncrements)
     rssiMultipath(kk) = sum(rssi);
 end
 
-distIncrements = positionIncrements - txPos_m(1);
-losRssi = A + 10*n*log(distIncrements);
-
 figure()
 ActualRssi = losRssi + rssiMultipath;
 plot(distIncrements, ActualRssi)
 hold on;
+% Plot measured data points
 scatter(RealDist_m, RealRSSI_nDBm);
+% Plot calibrated model
 distances = 1:0.1:8;
-plot(distances, (A + 10*n*log(distances)))
+plot(distances, (A + 10*n*log10(distances)))
 
 
 % figure()
