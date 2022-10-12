@@ -63,9 +63,9 @@ w6 = p(p(:,3) == roomHeight_m,:);
 % put all wall cordinates into cell array
 w = {w1, w2, w3, w4, w5, w6};
 % w = {w3, w4, w5, w6};
-w = {w4}
+%w = {w4}
 
-distIncrements = 1:0.01:8;
+distIncrements = 1:0.02:8;
 positionIncrements = txPos_m(1) + distIncrements;
 losRssi = A + 10*n*log10(distIncrements);
 losPhase = real(exp(-j*((2*pi*Frequency_Hz)/physconst('LightSpeed'))*distIncrements));
