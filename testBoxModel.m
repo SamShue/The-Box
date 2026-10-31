@@ -75,6 +75,11 @@ assert(a.referenceDbm == -33 && b.referenceDbm == -34);
 assert(all(a.samplesDbm(:) < 0) && all(b.samplesDbm(:) < 0));
 assert(abs(max(abs(diff(a.rotationMeanDbm,1,2)))-11) < 1e-10);
 assert(all(a.powerMeanDbm >= a.meanDbm-1e-12));
+assert(isequal(size(a.rotationPowerMeanDbm),[25,2]));
+combined = 10*log10(mean(10.^(a.rotationPowerMeanDbm/10),2));
+assert(max(abs(combined-a.powerMeanDbm)) < 1e-12);
+assert(all(a.powerMeanDbm >= min(a.rotationPowerMeanDbm,[],2)-1e-12));
+assert(all(a.powerMeanDbm <= max(a.rotationPowerMeanDbm,[],2)+1e-12));
 [A,n] = fitLogDistanceModel(a.meanDbm,a.distance_m);
 assert(abs(A+38.638603) < 1e-6 && abs(n-1.257285) < 1e-6);
 % Exercise the alternative byte interpretation against known workbook bytes.

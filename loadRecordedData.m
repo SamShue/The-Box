@@ -22,6 +22,9 @@ data.distance_m = cell2mat(T(isDistance,1))*scale;
 data.samplesDbm = decode(T(isDistance,2:11), encoding);
 data.rotationMeanDbm = [mean(data.samplesDbm(:,1:5),2), ...
     mean(data.samplesDbm(:,6:10),2)];
+data.rotationPowerMeanDbm = 10*log10([ ...
+    mean(10.^(data.samplesDbm(:,1:5)/10),2), ...
+    mean(10.^(data.samplesDbm(:,6:10)/10),2)]);
 % Mean logarithmic RSSI and mean received power are different statistics.
 data.meanDbm = mean(data.samplesDbm,2);
 data.powerMeanDbm = 10*log10(mean(10.^(data.samplesDbm/10),2));

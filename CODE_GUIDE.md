@@ -1,4 +1,4 @@
-﻿# Code guide: running and understanding The Box
+# Code guide: running and understanding The Box
 
 This document follows the MATLAB implementation from recorded samples to predicted received power. Read the [educational primer](BACKGROUND.md) for the underlying physics and step-by-step equation derivations.
 
@@ -14,7 +14,7 @@ PlotRecorded_Data
 
 Base MATLAB is sufficient; the spreadsheets are read using `readcell`. The implementation does not require the original RF or Statistics toolbox functions.
 
-`testBoxModel` runs numerical checks. `TheBox_SIMULATION` clears workspace variables, closes existing figures, and creates a power-comparison figure and a room-geometry figure. `PlotRecorded_Data` creates a separate plot of October measurements and leaves existing figures open.
+`testBoxModel` runs numerical checks. `TheBox_SIMULATION` clears workspace variables, closes existing figures, and creates an orientation-averaged RSSI comparison, an absolute-error bar chart, and a room-geometry figure. `PlotRecorded_Data` creates a separate orientation-averaged October measurement plot.
 
 The scripts locate spreadsheets relative to their own file locations using `mfilename('fullpath')` and `fileparts`. Their helper functions must also be on MATLAB's path; running from the repository directory satisfies that requirement.
 
@@ -24,21 +24,19 @@ The scripts locate spreadsheets relative to their own file locations using `mfil
 flowchart TD
     SEPT[September workbook] --> LOAD[loadRecordedData]
     LOAD --> REF[Separate 1 m reference]
-    LOAD --> ROT[Two rotation means]
-    LOAD --> FIT[fitLogDistanceModel]
+    LOAD --> ROT[Mean linear power and orientation spread]
     SETTINGS[Room, antennas, and receiver sweep] --> PATHS[boxReflectionPaths]
     PATHS --> SUM[combinePaths]
     REF --> SUM
     RF[Carrier and surface coefficients] --> SUM
     SUM --> POWER[Power comparison figure]
     ROT --> POWER
-    FIT --> POWER
     PATHS --> ROOM[Room geometry figure]
     OCT[October workbook] --> OCTLOAD[loadRecordedData]
     OCTLOAD --> OCTPLOT[PlotRecorded_Data]
 ```
 
-The geometry function supplies lengths. The signal function turns those lengths and reflection coefficients into a coherent amplitude sum. The measurement fit is a separate comparison curve; its parameters do not control the ray model.
+The geometry function supplies lengths. The signal function turns those lengths and reflection coefficients into a coherent amplitude sum. The simulation compares the seven-ray prediction directly with measured RSSI. No trend is fitted as part of this comparison.
 
 | File | Role |
 |---|---|
@@ -46,7 +44,7 @@ The geometry function supplies lengths. The signal function turns those lengths 
 | [`loadRecordedData.m`](loadRecordedData.m) | Workbook parsing, unit conversion, decoding, and statistics |
 | [`boxReflectionPaths.m`](boxReflectionPaths.m) | Direct and six single-reflection path lengths and points |
 | [`combinePaths.m`](combinePaths.m) | Complex-amplitude sum and received-power conversion |
-| [`fitLogDistanceModel.m`](fitLogDistanceModel.m) | Least-squares measured trend |
+| [`fitLogDistanceModel.m`](fitLogDistanceModel.m) | Optional standalone least-squares trend helper |
 | [`PlotRecorded_Data.m`](PlotRecorded_Data.m) | Dense October measurement plot |
 | [`plotBoxModel.m`](plotBoxModel.m) | Room and antenna visualization |
 | [`plotcube.m`](plotcube.m) | Rectangular surface drawing helper |
@@ -82,7 +80,24 @@ The `encoding` argument chooses the conversion to signed dBm:
 | `negative-magnitude` (default) | Negate the decoded number | `2B` becomes 43, then -43 dBm |
 | `signed-byte` | Subtract 256 from decoded values at least 128 | `D5` becomes 213, then -43 dBm |
 
-The first option preserves the historical code's apparent interpretation. It is an assumption requiring confirmation from the radio documentation. The second is useful only if the radio actually reports two's-complement dBm bytes. Neither option implements a device-specific offset or arbitrary RSSI scale.
+The experiments used **Digi XBee Series 2 (S2) 2.4 GHz Zigbee modules**. For these modules, Digi documents `DB` as the magnitude of a negative-dBm reading, returned in hexadecimal. Consequently, `negative-magnitude` is the correct interpretation for the recorded `DB` values: `21` means -33 dBm, `2B` means -43 dBm, and `38` means -56 dBm. This agrees with Digi's example of `50` meaning -80 dBm. See the `DB` entry in the [original XBee/XBee-PRO ZB user guide](https://www.digi.com/resources/documentation/digidocs/pdfs/90000976.pdf).
+
+The `signed-byte` option is retained for other data sources that actually use two's-complement dBm bytes; it should not be selected for these S2 `DB` readings. Neither option implements an arbitrary RSSI index or a device-specific offset.
+
+### S2 packet measurements and the collection procedure
+
+The experimenter confirmed that **each recorded reading was taken after a new packet arrived**. The repeated samples were not obtained by issuing multiple `DB` commands without intervening packets. They therefore represent separate packet receptions rather than repeated queries of one unchanged measurement. Separate receptions do not necessarily make the measurements statistically independent: the propagation environment may remain almost unchanged between packets.
+
+Digi documents the following behavior for S2/ZB firmware:
+
+- `DB` reports the strength of the last received RF data packet. Beginning with firmware `2x6x`, an APS acknowledgment can also update the value.
+- The value describes the **last wireless hop**. If a packet is forwarded through another Zigbee node, the reading describes reception from that immediate sender, rather than the complete route from the original source.
+
+These behaviors are described in the [S2/ZB user guide's `DB` entry](https://www.digi.com/resources/documentation/digidocs/pdfs/90000976.pdf). The historical firmware version and routing configuration are not established here. For another collection, record those settings and associate each reading with the intended incoming packet and link.
+
+RSSI is a received energy measurement, not a decomposition into individual propagation paths. Digi notes that interference can contribute to the reported strength. The physical arrivals have already combined at the antenna before the receiver reports a value. See [Digi's discussion of RSSI and data integrity](https://www.digi.com/support/knowledge-base/data-integrity-and-received-signal-strength).
+
+The S2 documentation reviewed does not establish the exact internal sampling window, averaging algorithm, or absolute RSSI accuracy. Integer-dBm output should not be interpreted as a guarantee of accuracy within 1 dB. The model can be compared with these packet-associated power estimates, but a possible receiver calibration offset and unmodeled interference remain separate from geometric propagation errors.
 
 ### Returned structure
 
@@ -92,7 +107,8 @@ Let `N` be the number of sweep positions:
 |---|---|---|
 | `distance_m` | N-by-1 | Sweep distances in meters |
 | `samplesDbm` | N-by-10 | Individual decoded signed-dBm samples |
-| `rotationMeanDbm` | N-by-2 | Mean of each five-reading rotation group |
+| `rotationMeanDbm` | N-by-2 | Mean logarithmic reading of each five-reading rotation group |
+| `rotationPowerMeanDbm` | N-by-2 | Mean linear power within each orientation, converted back to signed dBm |
 | `meanDbm` | N-by-1 | Mean of all ten logarithmic readings |
 | `powerMeanDbm` | N-by-1 | Mean linear power converted back to dBm |
 | `referenceSamplesDbm` | 1-by-10 | Samples from the separate `1 meter` row |
@@ -102,7 +118,7 @@ Let `N` be the number of sweep positions:
 
 For example, `mean(data.samplesDbm(:,1:5),2)` selects every row and the first five samples, then averages across columns. The final argument `2` means the second array dimension, not the second rotation.
 
-The two rotation means stay separate in both plots. `meanDbm` combines them only for the descriptive measured trend. `powerMeanDbm` is available for analysis but is not used in the default plots.
+The plots use `powerMeanDbm` as the measured mean, giving both equally sampled orientations equal weight in linear power. The shaded orientation range spans the two entries of `rotationPowerMeanDbm`. The logarithmic means and raw samples remain available for separate-orientation analysis.
 
 Under the default decoding, September spans 0.9144 to 8.2296 m and its reference is -33 dBm. October spans 3.9624 to 4.8768 m and its reference is -34 dBm.
 
@@ -237,7 +253,7 @@ Every row represents one measurement. The column of ones multiplies the unknown 
 
 `b(1)` becomes the reference level `A` in dBm; `b(2)` becomes `n`. The helper does not constrain the fitted exponent to be positive: it reports the unconstrained measured trend. In contrast, the ray-combination function requires a positive configured spreading exponent.
 
-For September, the default decoding gives approximately `A = -38.638603` dBm and `n = 1.257285`. These parameters only draw the measured-trend curve. They do not replace `referenceDbm` or `pathExponent` in the ray model.
+For September, the default decoding gives approximately `A = -38.638603` dBm and `n = 1.257285`. These values describe an optional analysis, not a curve in the current simulation. The simulation does not call this helper or use fitted parameters.
 
 ## 8. Follow the receiver sweep and read the figures
 
@@ -251,17 +267,15 @@ rxPos_m = [txPos_m(1)+distance_m(index), txPos_m(2), rxHeight_m];
 
 Because the configured transmitter and receiver heights match, the x-offset is also their Euclidean separation. If you change receiver height, the offset no longer equals actual Tx-Rx distance; update the sweep, horizontal-axis interpretation, and baseline distance calculations together.
 
-At each point, geometry supplies seven lengths and `combinePaths` supplies one predicted power. Two additional curves are calculated outside the loop: the configured direct-path-only power and the independent fitted measurement trend.
+At each point, geometry supplies seven lengths and `combinePaths` supplies one predicted power. The comparison uses this complete model, including LOS and six reflections; standalone LOS and fitted-trend curves are not plotted.
 
-The power figure contains:
+The RSSI figure shows one dense seven-ray prediction and one measured line at the recorded positions. The measured line uses `data.powerMeanDbm`: convert all ten signed-dBm samples to linear power, average them, then convert back to dBm. Each orientation has five samples, so both receive equal weight. This averages received power, rather than the logarithms of power.
 
-| Plot entry | What it represents |
-|---|---|
-| LOS + six reflections | Coherent prediction using configured ray parameters |
-| Direct path only | Reference-scaled inverse-square baseline with no reflections |
-| Fitted measured trend | Smooth empirical summary of the measured logarithmic means |
-| Rotation 1 mean | Five-reading logarithmic mean at each measured position |
-| Rotation 2 mean | The other five-reading logarithmic mean |
+A shaded band spans the two orientation-specific power means (`rotationPowerMeanDbm`). These bounds use the same linear-power averaging convention as the central measurement. They show observed orientation spread, **not a confidence interval**, and do not imply that two orientations remove the antenna pattern or polarization effects. The dense prediction can have structure between the sparsely measured positions; the shaded edges simply connect the measured orientation bounds.
+
+RSSI is displayed as a positive magnitude in `-dBm`; a plotted value of 43 represents -43 dBm, and lower means stronger reception. Internal values stay signed dBm.
+
+The absolute-error bar figure evaluates the seven-ray model at the **exact measured distances** and compares it with the combined mean linear power. `errorDb = measuredRayDbm - measuredMeanDbm` retains signed errors; `absoluteErrorDb` supplies the nonnegative bar heights. `rmseDb`, `maeDb`, and `biasDb` summarize this combined comparison and are printed in `errorSummary` as `RMSE_dB`, `MAE_dB`, and `Bias_dB`. A positive signed bias means the model predicts a stronger signal. The error-chart subtitle reports all three statistics. These are errors against the average over the two sampled orientations, not an antenna-independent ground truth. No parameters are fitted to the sweep.
 
 The geometry figure uses the median recorded distance, draws Tx and Rx, shows the direct route as a dashed line, and draws the six reflected routes. Labels 1 through 6 match the surface order. It is one representative position, not an animation or a field-strength map.
 
@@ -269,7 +283,7 @@ The geometry figure uses the median recorded distance, draws Tx and Rx, shows th
 
 ## 9. Plot the October experiment
 
-`PlotRecorded_Data.m` loads the October workbook with the same explicit decoding convention, then plots each rotation mean against distance. It does not predict October power or assume October reused September's room and antenna coordinates.
+`PlotRecorded_Data.m` loads the October workbook with the same explicit decoding convention, then plots the combined mean linear power with a shaded range spanning the two orientation power means. It does not predict October power or assume October reused September's room and antenna coordinates.
 
 The one-inch spacing provides denser spatial information than September's one-foot spacing. Before comparing it to a simulated curve, establish the actual geometry, route, carrier, and orientations for that collection.
 
@@ -286,10 +300,12 @@ The one-inch spacing provides denser spatial information than September's one-fo
 - Recovery of known log-distance parameters, including a non-unit reference distance.
 - Historical workbook shapes, distance conversions, reference levels, rotation differences, and fitted parameters.
 
-The workbook regression checks preserve the known historical data interpretation. They do not verify the radio's real encoding or establish that the model predicts a physical room accurately. The alternative signed-byte check exercises that branch on the existing low-valued bytes; it does not use a historical byte above 127.
+The workbook regression checks preserve the historical data interpretation. The S2 `DB` encoding is supported by Digi's documentation; the tests themselves do not measure receiver calibration accuracy or establish that the model predicts a physical room accurately. The alternative signed-byte check exercises that branch on the existing low-valued bytes; it does not use a historical byte above 127.
 
 ## 11. Experimental assumptions and next changes
 
-The first quantitative comparison should confirm RSSI encoding, actual carrier frequency, antenna locations and orientations, room dimensions, and independent reference scaling. September's rotation means differ by up to 11 dB at the same distance, while its fitted 1 m trend differs from the separately recorded reference by about 5.64 dB. These observations justify retaining the measurements and calibration choices explicitly.
+The S2 identification establishes the documented conversion for `DB`, and the experimenter's clarification rules out repeated queries without new packet arrivals as the explanation for similar readings. Remaining inputs to establish include the actual carrier frequency, firmware and routing configuration, antenna locations and orientations, room dimensions, and independent reference scaling.
+
+September's rotation means differ by up to 11 dB at the same distance, while the largest range within either five-reading rotation group is 2 dB. This is consistent with relatively repeatable packet measurements at fixed position and orientation, with larger orientation-associated differences. It does not by itself identify whether antenna gain, polarization, multipath, or temporal interference caused the difference. The fitted 1 m trend also differs from the separately recorded reference by about 5.64 dB, so reference calibration remains consequential. Compare both absolute levels and spatial changes; fitting an overall level offset does not validate predicted peak and null locations.
 
 After those inputs are established, surface-specific coefficients, antenna responses, additional bounces, or a bandwidth-aware model can be added as the experiment warrants. The current implementation is scalar and narrowband; it contains no automatic material estimation, polarization tracking, obstruction detection, or congestion diagnosis. The [primer's discussion of model limits](BACKGROUND.md#10-where-the-approximation-ends) explains why those extensions can matter.

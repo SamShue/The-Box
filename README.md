@@ -16,7 +16,7 @@ TheBox_SIMULATION
 PlotRecorded_Data
 ```
 
-The simulation plots the September measurements alongside a coherent seven-ray prediction and an independent fitted trend. The second script plots the densely sampled October measurements. Both preserve the two measurement rotations. Base MATLAB is sufficient; the original RF and Statistics toolbox dependencies have been removed.
+The simulation plots the September measurements alongside a coherent seven-ray prediction. The second script plots the densely sampled October measurements. Both show mean linear power across the two orientations, with their spread shaded. Raw orientation measurements remain available in the loader output. Base MATLAB is sufficient; the original RF and Statistics toolbox dependencies have been removed.
 
 ## Assumptions to configure
 
