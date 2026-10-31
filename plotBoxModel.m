@@ -1,6 +1,5 @@
 function plotBoxModel(l, w, h, tx, rx)
-%PLOTBOX Summary of this function goes here
-%   Detailed explanation goes here
+%PLOTBOXMODEL Render an axis-aligned room and antenna positions in meters.
 
     % Render environment for fun
     hold on;
@@ -9,6 +8,10 @@ function plotBoxModel(l, w, h, tx, rx)
     text(tx(1),tx(2),tx(3)+h*0.1,'tx');
     scatter3(rx(1),rx(2),rx(3));
     text(rx(1),rx(2),rx(3)+h*0.1,'rx');
+    axis equal;
+    xlim([0 l]); ylim([0 w]); zlim([0 h]);
+    xlabel('x (m)'); ylabel('y (m)'); zlabel('z (m)');
+    grid on;
 
 end
 
